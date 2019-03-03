@@ -1,5 +1,5 @@
 # Web Scrapper for Vatan Bilgisayar
-Python application that uses Beautiful Soup 4 for parsing web pages into useful data. VatanScrapper gathers data from from Vatan Computer’s website a famous electronics store in Turkey, such as price and specs of products.
+Python application that uses Beautiful Soup 4 for parsing web pages into useful data. VatanScrapper gathers data from from Vatan Computer’s website a famous electronics store in Turkey, such as price and specs of products. Gathered data is placed in notebooks sub folder directory as JSON files, images are placed accordingly into subfolders as well.  
 
 ## Tech Stack
 - [Beautifoul Soup 4](https://www.crummy.com/software/BeautifulSoup/), used for web scrapipng, gathering data from [Vatan Bilgisayar](https://www.vatanbilgisayar.com/).
