@@ -4,9 +4,13 @@ url = "https://pypi.org/simple"
 verify_ssl = true
 
 [dev-packages]
+pylint = "*"
+autopep8 = "*"
 
 [packages]
 bs4 = "*"
+requests = "*"
+openpyxl = "*"
 
 [requires]
 python_version = "3.7"

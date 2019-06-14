@@ -1,11 +1,9 @@
-import logging
+import openpyxl
 import requests
-import shutil
-import json
-from bs4 import BeautifulSoup as soup
+from bs4 import BeautifulSoup
+from openpyxl.utils.cell import get_column_letter
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
-
 
 
 def string(raw):
@@ -61,87 +59,95 @@ def escapeTUR(string):
     return out
 
 
-def downloadImage(url, directory, session):
-    try:
-        with session.get(url, stream=True) as image:
-            image_dir = directory + ".jpg"
-            with open(image_dir, 'wb') as out:
-                image.raw.decode = True
-                shutil.copyfileobj(image.raw, out)
-    except Exception as ex:
-        logging.error("Image download failed. " + str(ex))
-
-
-def getSpecs(url, session):
+def getSpecs(url: str, session: requests.Session) -> tuple:
     '''
     Scrapes the spec sheet of the notebook in key, value pairs
     '''
     try:
         with session.get(url) as spec_sheet:
-            spec_cells = soup(spec_sheet.text, "html.parser").find("div", {"class": "urunOzellik"}).findAll(
+            spec_cells = BeautifulSoup(spec_sheet.text, "html.parser").find("div", {"class": "urunOzellik"}).findAll(
                 "td", {"class": "gridAlternateDefault gridAlternateUrunOzellik"})
             content = []
             for cell in spec_cells:
                 properties = {}
                 properties["name"] = cell.find("div").text.strip()
                 for pair in cell.findAll("tr"):
-                    k = escapeTUR(pair.findAll("td")[0].text[:-6].strip().lower())
-                    v = escapeTUR(pair.findAll("td")[1].text[:-6].strip().lower())
+                    k = escapeTUR(pair.findAll("td")[
+                                  0].text[:-6].strip().lower())
+                    v = escapeTUR(pair.findAll("td")[
+                                  1].text[:-6].strip().lower())
                     properties[k] = v
                 content.append(properties)
-            return content
     except Exception as ex:
-        logging.error("Spec sheet parsing failed. " + str(ex))
+        print(ex)
+    try:
+        CPU = content[0]["i̇slemci teknolojisi"] + \
+            "-" + content[0]["i̇slemci numarasi"]
+        size = content[1]["ekran boyu"]
+        resolution = content[1]["cozunurluk (piksel)"]
+        storage = str(content[2]["disk kapasitesi"]) + \
+            " " + str(content[2]["disk turu"])
+        os = content[0]["i̇sletim sistemi"]
+        return (CPU, size, resolution, storage, os, content)
+    except:
+        return None
 
+if __name__ == '__main__':
+    # XSLX Sheet
+    workbook = openpyxl.load_workbook('template.xlsx')
+    out_sheet = workbook[workbook.sheetnames[0]]
 
-def main():
+    # Requests Library Config
     session = requests.Session()
     retry = Retry(connect=3, backoff_factor=0.5)
     adapter = HTTPAdapter(max_retries=retry)
     session.mount('http://', adapter)
     session.mount('https://', adapter)
     base_url = "http://www.vatanbilgisayar.com"
-    logging.basicConfig(level=logging.INFO,
-                        format='%(asctime)s - %(levelname)s - %(message)s')
+
     index = 0
     try:
         for i in range(1, 9):
-            web_url = "http://www.vatanbilgisayar.com/notebook/?page={}".format(
-                i)
+            web_url = f"http://www.vatanbilgisayar.com/notebook/?page={i}"
             main_page = session.get(web_url)
-            vatan = soup(main_page.text, "html.parser")
-            logging.debug("Status code for product list {} is {}.".format(i, main_page.status_code))
+            vatan = BeautifulSoup(main_page.text, "html.parser")
+            print(
+                f"Status code for product list {i} is {main_page.status_code}.")
             notebooks = vatan.findAll("div", {"class": "ems-prd-inner"})
             for notebook in notebooks[:-1]:
                 index += 1
                 properties = {}  # properties of this notebook
-                # image name will be saved in form
-                code = "notebook-" + str(index).rjust(3, "0")
                 divs = notebook.findAll("div")
-                url = base_url + divs[0].a["href"]  # home page of the product
+
+                # home page of the product
+                url = base_url + divs[0].a["href"]
+
                 # full name of the product
-                name = string(divs[1].find(
-                    "div", {"class": "ems-prd-name"}).text)
+                name = " ".join(divs[1].find(
+                    "div", {"class": "ems-prd-name"}).text.strip().split(' ')[:2])
+
+                # price of the product
                 price = string(notebook.find("div", {"class": "ems-prd-price"}).find("span", {
-                    "class": "ems-prd-price-selling"}).text.replace(" ", ""))  # price of the product
-                image_url = divs[0].a.img["data-original"]  # icon image url
-                image_dir = "images\\" + code
+                    "class": "ems-prd-price-selling"}).text.replace(" ", ""))
+
                 spec_url = url + "#urun-ozellikleri"
-                spec_sheet = getSpecs(spec_url, session)
-                properties["name"] = name
-                properties["url"] = url
-                properties["price"] = price
-                properties["image_dir"] = "images\\" + code + ".jpg"
-                properties["specs"] = spec_sheet
-                downloadImage(image_url, image_dir, session)
-                with open("notebooks\\" + code + ".json", "w", encoding="utf-8") as out:
-                    json.dump(properties, out, ensure_ascii=False, indent="\t")
-                    logging.info("{} -- is complete {}.".format(name, url))
+                try:
+                    CPU, size, resolution, storage, os, _ = getSpecs(
+                        spec_url, session)
+                    properties["name"] = name
+                    properties["url"] = url
+                    properties["price"] = price
+                    properties["CPU"] = CPU
+                    out_sheet.cell(row=i+1, column=1, value=name)
+                    out_sheet.cell(row=i+1, column=2, value=price)
+                    out_sheet.cell(row=i+1, column=3, value=CPU)
+                    out_sheet.cell(row=i+1, column=4, value=size)
+                    out_sheet.cell(row=i+1, column=5, value=resolution)
+                    out_sheet.cell(row=i+1, column=6, value=storage)
+                    out_sheet.cell(row=i+1, column=7, value=os)
+                except:
+                    continue
+            break
+        workbook.save('outfile.xlsx')
     except Exception as ex:
-        logging.critical("Error encounterd. " + str(ex))
-
-
-if __name__ == '__main__':
-    logging.debug("main() Started.")
-    main()
-    logging.debug("main() Ended.")
+        print(f"Error encounterd.\n{ex}")
