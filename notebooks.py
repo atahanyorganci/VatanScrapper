@@ -123,8 +123,8 @@ if __name__ == '__main__':
                 url = base_url + divs[0].a["href"]
 
                 # full name of the product
-                name = " ".join(divs[1].find(
-                    "div", {"class": "ems-prd-name"}).text.strip().split(' ')[:2])
+                manufacturer = " ".join(divs[1].find(
+                    "div", {"class": "ems-prd-name"}).text.strip().split(' ')[0])
 
                 # price of the product
                 price = string(notebook.find("div", {"class": "ems-prd-price"}).find("span", {
@@ -134,17 +134,18 @@ if __name__ == '__main__':
                 try:
                     CPU, size, resolution, storage, os, _ = getSpecs(
                         spec_url, session)
-                    properties["name"] = name
+                    properties["name"] = manufacturer
                     properties["url"] = url
                     properties["price"] = price
                     properties["CPU"] = CPU
-                    out_sheet.cell(row=i+1, column=1, value=name)
+                    out_sheet.cell(row=i+1, column=1, value=manufacturer)
                     out_sheet.cell(row=i+1, column=2, value=price)
                     out_sheet.cell(row=i+1, column=3, value=CPU)
                     out_sheet.cell(row=i+1, column=4, value=size)
                     out_sheet.cell(row=i+1, column=5, value=resolution)
                     out_sheet.cell(row=i+1, column=6, value=storage)
                     out_sheet.cell(row=i+1, column=7, value=os)
+                    out_sheet.cell(row=i+1, column=8, value=url)
                 except:
                     continue
             break
