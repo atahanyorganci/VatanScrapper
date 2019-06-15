@@ -1,8 +1,12 @@
-# Web Scrapper for Vatan Bilgisayar
-Python application that uses Beautiful Soup 4 for parsing web pages into useful data. VatanScrapper gathers data from from Vatan Computer’s website a famous electronics store in Turkey, such as price and specs of products. Gathered data is placed in notebooks sub folder directory as JSON files, images are placed accordingly into subfolders as well.  
+# VatanScrapper
+
+Python script that scrapes useful data from [Vatan Bilgisayar](https://www.vatanbilgisayar.com/)'s web page and stores them in Excel workbook. Data is gathered from the website with a combination of packages [Requests](https://3.python-requests.org/) for making HTTP requests, and [BeautifulSoup 4](https://www.crummy.com/software/BeautifulSoup/) for processing returned mark-up from the server. Then, gathered data is stored in Excel workbook, this process is handled by [openpyxl](https://openpyxl.readthedocs.io/en/stable/) module. All of the dependencies can be installed with [pipenv](https://docs.pipenv.org/en/latest/) manager.
 
 ## Tech Stack
-- [Beautifoul Soup 4](https://www.crummy.com/software/BeautifulSoup/), used for web scrapipng, gathering data from [Vatan Bilgisayar](https://www.vatanbilgisayar.com/).
+
+- [Requests](https://3.python-requests.org/) for making HTTP GET request to the servers, and fetch websites.
+- [BeautifulSoup 4](https://www.crummy.com/software/BeautifulSoup/), used for web scrapping, gathering data from [Vatan Bilgisayar](https://www.vatanbilgisayar.com/).
+- [openpyxl](https://openpyxl.readthedocs.io/en/stable/) for handling Excel workbooks.
 
 ## How to Install
 
