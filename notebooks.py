@@ -1,47 +1,15 @@
+import sys
+
 import openpyxl
 import requests
 from bs4 import BeautifulSoup
-from openpyxl.utils.cell import get_column_letter
-from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
 
-
-def string(raw):
-    '''
-    Replaces the whitespaces with under scores, all lowercase letters
-    '''
-    return raw.strip().lower().replace(" ", "_")
-
-
-def escapeDOS(string):
-    '''
-    Escapes the literal that are not allowed to be file names in DOS file systems
-    '''
-    out = string[:]
-    if "\\" in string:
-        out = out.replace('\\', "_")
-    if "/" in string:
-        out = out.replace('/', "_")
-    if ":" in string:
-        out = out.replace(':', "_")
-    if '*' in string:
-        out = out.replace('*', "_")
-    if '?' in string:
-        out = out.replace('?', "_")
-    if '"' in string:
-        out = out.replace('"', "_")
-    if '<' in string:
-        out = out.replace('<', "_")
-    if '>' in string:
-        out = out.replace('>', "_")
-    if '|' in string:
-        out = out.replace('|', "_")
-    return out
+import log
 
 
 def escapeTUR(string):
     '''
-    Escapes the literals that are exclusively Turkish
+    Escapes Turkish literals
     '''
     out = string[:]
     if "ö" in string:
@@ -59,14 +27,24 @@ def escapeTUR(string):
     return out
 
 
-def getSpecs(url: str, session: requests.Session) -> tuple:
+def getSpecs(url: str, logger=None, verbose=False):
     '''
     Scrapes the spec sheet of the notebook in key, value pairs
     '''
+    if logger:
+        logger = log.Logger(log.DEBUG)
+
+    # Process given URL
     try:
-        with session.get(url) as spec_sheet:
-            spec_cells = BeautifulSoup(spec_sheet.text, "html.parser").find("div", {"class": "urunOzellik"}).findAll(
+        with requests.get(url) as response:
+            soup = BeautifulSoup(response.text, "html.parser")
+            price = soup.find(
+                "span", {"class": "urunDetay_satisFiyat"}).text.split(" ")[0]
+            spec_cells = soup.find("div", {"class": "urunOzellik"}).findAll(
                 "td", {"class": "gridAlternateDefault gridAlternateUrunOzellik"})
+            manufacturer = soup.find(
+                "h1", {"class": "emos_H1"}).text.split(" ")[0]
+            name = soup.find("div", {"id": "plhUrunKodu"}).text.strip()
             content = []
             for cell in spec_cells:
                 properties = {}
@@ -78,8 +56,21 @@ def getSpecs(url: str, session: requests.Session) -> tuple:
                                   1].text[:-6].strip().lower())
                     properties[k] = v
                 content.append(properties)
+    except ConnectionError:
+        logger.critical("Failed to locate URL, ConnectionError has occurred.")
+        logger.critical("Quitting...")
+        return
     except Exception as ex:
-        print(ex)
+        logger.critical("Unexpected type of error has occurred.")
+        logger.trace(ex)
+        logger.critical("Quitting...")
+        return
+
+    # If verbose mode is turned return all the properties
+    if verbose:
+        return content
+
+    # Return desired properties as a tuple
     try:
         CPU = content[0]["i̇slemci teknolojisi"] + \
             "-" + content[0]["i̇slemci numarasi"]
@@ -88,67 +79,117 @@ def getSpecs(url: str, session: requests.Session) -> tuple:
         storage = str(content[2]["disk kapasitesi"]) + \
             " " + str(content[2]["disk turu"])
         os = content[0]["i̇sletim sistemi"]
-        return (CPU, size, resolution, storage, os, content)
-    except:
+        return (manufacturer, name, price, CPU, size, resolution, storage, os)
+    except KeyError:
+        logger.error("Failed to locate properties, returning None.")
         return None
+    except Exception as ex:
+        logger.critical("Unexpected type of error has occurred.")
+        logger.trace(ex)
+        logger.critical("Quitting...")
+        sys.exit(1)
 
-if __name__ == '__main__':
+
+def main():
+    # Constants
+    BASE_URL = "http://www.vatanbilgisayar.com"
+    OUT_FILE = "outfile.xlsx"
+
+    # Instantiate Logger Object and configure it
+    logger = log.Logger(log.INFO)
+
     # XSLX Sheet
-    workbook = openpyxl.load_workbook('template.xlsx')
-    out_sheet = workbook[workbook.sheetnames[0]]
+    try:
+        workbook = openpyxl.load_workbook('template.xlsx')
+        out_sheet = workbook[workbook.sheetnames[0]]
+        logger.info("Template .xlsx file loaded successfully.")
+    except FileNotFoundError as ex:
+        logger.critical("Template .xlsx file not found.")
+        logger.critical("Quitting...")
+        return
+    except Exception as ex:
+        logger.critical("Unexpected type of error has occurred.")
+        logger.trace(ex)
+        logger.critical("Quitting...")
+        sys.exit(1)
 
-    # Requests Library Config
-    session = requests.Session()
-    retry = Retry(connect=3, backoff_factor=0.5)
-    adapter = HTTPAdapter(max_retries=retry)
-    session.mount('http://', adapter)
-    session.mount('https://', adapter)
-    base_url = "http://www.vatanbilgisayar.com"
-
-    index = 0
+    # Grab product links
+    links = []
     try:
         for i in range(1, 9):
-            web_url = f"http://www.vatanbilgisayar.com/notebook/?page={i}"
-            main_page = session.get(web_url)
+            web_url = f"{BASE_URL}/notebook/?page={i}"
+            main_page = requests.get(web_url)
             vatan = BeautifulSoup(main_page.text, "html.parser")
-            print(
-                f"Status code for product list {i} is {main_page.status_code}.")
+            logger.debug(f"Product list {i} returned {main_page.status_code}.")
             notebooks = vatan.findAll("div", {"class": "ems-prd-inner"})
             for notebook in notebooks[:-1]:
-                index += 1
-                properties = {}  # properties of this notebook
-                divs = notebook.findAll("div")
-
-                # home page of the product
-                url = base_url + divs[0].a["href"]
-
-                # full name of the product
-                manufacturer = " ".join(divs[1].find(
-                    "div", {"class": "ems-prd-name"}).text.strip().split(' ')[0])
-
-                # price of the product
-                price = string(notebook.find("div", {"class": "ems-prd-price"}).find("span", {
-                    "class": "ems-prd-price-selling"}).text.replace(" ", ""))
-
-                spec_url = url + "#urun-ozellikleri"
-                try:
-                    CPU, size, resolution, storage, os, _ = getSpecs(
-                        spec_url, session)
-                    properties["name"] = manufacturer
-                    properties["url"] = url
-                    properties["price"] = price
-                    properties["CPU"] = CPU
-                    out_sheet.cell(row=i+1, column=1, value=manufacturer)
-                    out_sheet.cell(row=i+1, column=2, value=price)
-                    out_sheet.cell(row=i+1, column=3, value=CPU)
-                    out_sheet.cell(row=i+1, column=4, value=size)
-                    out_sheet.cell(row=i+1, column=5, value=resolution)
-                    out_sheet.cell(row=i+1, column=6, value=storage)
-                    out_sheet.cell(row=i+1, column=7, value=os)
-                    out_sheet.cell(row=i+1, column=8, value=url)
-                except:
-                    continue
-            break
-        workbook.save('outfile.xlsx')
+                url = notebook.find('div').a["href"]
+                links.append(url)
+            logger.info(f"Processed product list {i}.")
+            logger.info(f"Total number of products is {len(links)}.")
+    except ConnectionError:
+        logger.critical("Failed to locate URL, ConnectionError has occurred.")
+        logger.critical("Quitting...")
+        return
     except Exception as ex:
-        print(f"Error encounterd.\n{ex}")
+        logger.critical("Unexpected type of error has occurred.")
+        logger.trace(ex)
+        logger.critical("Quitting...")
+        sys.exit(1)
+    logger.info(f"Processed all product lists total number of products is {len(links)}.")
+
+    # Process product links
+    row = 2
+    error = {"count": 0, "links": []}
+    for i, link in enumerate(links):
+        # Gather data from the products page
+        try:
+            spec_url = f"{BASE_URL}{link}#urun-ozellikleri"
+            result = getSpecs(spec_url, logger=logger)
+            if result is None:
+                error["count"] += 1
+                error["links"].append(link)
+                continue
+            manufacturer, name, price, CPU, size, resolution, storage, os = result
+            logger.info(f"Link number {i} specs processed.")
+        except ConnectionError:
+            logger.critical(
+                "Failed to locate URL, ConnectionError has occurred.")
+            logger.critical("Quitting...")
+            return
+        except Exception as ex:
+            logger.critical("Unexpected type of error has occurred.")
+            logger.trace(ex)
+            logger.critical("Quitting...")
+            sys.exit(1)
+
+        # Write gathered data into the spreadsheet
+        try:
+            out_sheet.cell(row=row, column=1, value=manufacturer)
+            out_sheet.cell(row=row, column=2, value=name)
+            out_sheet.cell(row=row, column=3, value=price)
+            out_sheet.cell(row=row, column=4, value=CPU)
+            out_sheet.cell(row=row, column=5, value=size)
+            out_sheet.cell(row=row, column=6, value=resolution)
+            out_sheet.cell(row=row, column=7, value=storage)
+            out_sheet.cell(row=row, column=8, value=os)
+            out_sheet.cell(row=row, column=9, value=link)
+            logger.info(f"Link number {i} written to the file.")
+            row += 1
+            workbook.save(OUT_FILE)
+        except PermissionError:
+            logger.critical(f"Permission denied when accessing file ({OUT_FILE}).")
+            logger.critical("Quitting...")
+            return
+        except Exception as ex:
+            logger.critical("Unexpected type of error has occurred.")
+            logger.trace(ex)
+            logger.critical("Quitting...")
+            sys.exit(1)
+    logger.debug(f'Skipped {error["count"]} links.')
+    for link in error["links"]:
+        logger.info(f"{BASE_URL}{link}#urun-ozellikleri")
+
+
+if __name__ == "__main__":
+    main()
