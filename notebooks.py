@@ -136,7 +136,8 @@ def main():
         logger.trace(ex)
         logger.critical('Quitting...')
         sys.exit(1)
-    logger.info(f'Processed all product lists total number of products is {len(links)}.')
+    logger.info(
+        f'Processed all product lists total number of products is {len(links)}.')
 
     # Process product links
     row = 2
@@ -178,7 +179,8 @@ def main():
             row += 1
             workbook.save(OUT_FILE)
         except PermissionError:
-            logger.critical(f'Permission denied when accessing file ({OUT_FILE}).')
+            logger.critical(
+                f'Permission denied when accessing file ({OUT_FILE}).')
             logger.critical('Quitting...')
             return
         except Exception as ex:
@@ -186,7 +188,7 @@ def main():
             logger.trace(ex)
             logger.critical('Quitting...')
             sys.exit(1)
-    logger.debug(f'Skipped {error['count']} links.')
+    logger.debug(f"Skipped {error['count']} links.")
     for link in error['links']:
         logger.info(f'{BASE_URL}{link}#urun-ozellikleri')
 
