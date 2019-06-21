@@ -7,7 +7,7 @@
 
 </div>
 
-<p align="center"> Few lines describing your project.
+<p align="center">
     Python script that scrapes useful data from Vatan Bilgisayar's web page and stores them in Excel workbook.
 </p>
 
