@@ -3,7 +3,7 @@
 <div align="center">
 
   [![GitHub Issues](https://img.shields.io/badge/python-3.7.3-brightgreen.svg)](https://www.python.org/)
-  [![License](https://img.shields.io/badge/license-MIT-blue.svg)](/LICENSE.md)
+  [![License](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE.md)
 
 </div>
 
